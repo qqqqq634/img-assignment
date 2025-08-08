@@ -47,48 +47,47 @@ class ZoneAnalyzer:
         }
         
         logger.info("Zone analyzer initialized with business rules")
+        
+    def normalize_zone_type(self, zone_type: str) -> str:
+        """Normalize zone type for internal comparison"""
+        return zone_type.strip().replace("-", "_").replace(" ", "_").lower()
+
     
     def validate_zone_definition(self, zone: Dict[str, Any]) -> bool:
-        """
-        Validate zone definition structure and geometry
-        
-        Args:
-            zone (dict): Zone definition with points and metadata
-            
-        Returns:
-            bool: True if zone is valid
-            
-        Raises:
-            ZoneDefinitionError: If zone definition is invalid
-        """
         required_fields = ['id', 'type', 'points']
-        
+
         # Check required fields
         for field in required_fields:
             if field not in zone:
                 raise ZoneDefinitionError(f"Missing required field: {field}")
-        
-        # Validate zone type
-        if zone['type'] not in self.zone_rules:
-            raise ZoneDefinitionError(f"Invalid zone type: {zone['type']}")
-        
+
+        # Normalize and debug log
+        raw_type = zone['type']
+        zone_type = self.normalize_zone_type(raw_type)
+        print(f"[DEBUG] Zone ID: {zone.get('id')} | Raw type: '{raw_type}' | Normalized: '{zone_type}'")
+
+        if zone_type not in self.zone_rules:
+            raise ZoneDefinitionError(f"Invalid zone type: {raw_type}")
+
+        # Replace with normalized type
+        zone['type'] = zone_type
+
         # Validate points (must have at least 3 points for polygon)
         points = zone['points']
         if not isinstance(points, list) or len(points) < 3:
             raise ZoneDefinitionError("Zone must have at least 3 points")
-        
-        # Validate point structure
+
         for i, point in enumerate(points):
             if not isinstance(point, (list, tuple)) or len(point) != 2:
                 raise ZoneDefinitionError(f"Point {i} must be [x, y] coordinates")
-            
             try:
                 float(point[0])
                 float(point[1])
             except (ValueError, TypeError):
                 raise ZoneDefinitionError(f"Point {i} coordinates must be numeric")
-        
+
         return True
+
     
     def create_polygon_from_zone(self, zone: Dict[str, Any]) -> Polygon:
         """
@@ -235,8 +234,9 @@ class ZoneAnalyzer:
                     self.validate_zone_definition(zone)
                     zone_polygons[zone['id']] = {
                         'polygon': self.create_polygon_from_zone(zone),
-                        'type': zone['type'],
+                        'type': zone['type'], 
                         'metadata': zone.get('metadata', {})
+
                     }
                 except ZoneDefinitionError as e:
                     logger.error(f"Invalid zone {zone.get('id', 'unknown')}: {e}")
@@ -273,7 +273,7 @@ class ZoneAnalyzer:
                                     'violation_type': auth_result['violation_type'],
                                     'severity': auth_result['severity'],
                                     'message': auth_result['message'],
-                                    'timestamp': None  # Can be added if needed
+                                    'timestamp': None 
                                 }
                                 violations.append(violation)
                                 
